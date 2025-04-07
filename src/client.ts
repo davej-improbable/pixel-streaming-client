@@ -136,6 +136,7 @@ export type TargetOpts =
  */
 export type StartStreamConfig = {
   streamId: string
+  sessionId: string
   config?: StreamConfig
 }
 
@@ -317,7 +318,7 @@ export class StreamingClient extends TypedEventTarget<StreamingClientEvents> {
     projectId: string
     worldId: string
     forceProvider?: StreamProvider
-  }): Promise<StartStreamConfig> {
+  }): Promise<StartStreamConfig | undefined> {
     const compat = getStreamCompat(this.skipBrowserSupportChecks)
     const streamId = uuidv7()
 
@@ -334,9 +335,14 @@ export class StreamingClient extends TypedEventTarget<StreamingClientEvents> {
       },
     })
 
+    if (!session) {
+      return undefined
+    }
+
     return {
       streamId,
-      config: session?.providerConfig,
+      sessionId: session.sessionId,
+      config: session.providerConfig,
     }
   }
 
@@ -347,7 +353,8 @@ export class StreamingClient extends TypedEventTarget<StreamingClientEvents> {
    * @throws {never} This method catches all errors and returns them
    * @emits streamStateUpdated
    * @emits error
-   */ async start({
+   */
+  async start({
     streamId,
     provider,
     ...opts

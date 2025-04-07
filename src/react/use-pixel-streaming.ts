@@ -108,6 +108,12 @@ export function usePixelStreaming({
       })
 
       if (streamingContainerOrError instanceof StreamingClientError) {
+        streamingClientRef.current.deleteSession({
+          projectId,
+          worldId,
+          sessionId: config.sessionId,
+          deletionReason: streamingContainerOrError?.message,
+        })
         throw streamingContainerOrError
       }
     },

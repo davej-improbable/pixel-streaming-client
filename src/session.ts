@@ -156,9 +156,17 @@ export class SessionClient {
         headers,
       })
 
+      if (!response.ok) {
+        this.logger.error("Failed to refresh session:", {
+          body: await response.text(),
+          status: response.status,
+        })
+        return
+      }
+
       return await (response.json() as Promise<Session>)
     } catch (error) {
-      this.logger.error("Failed to refresh session:", { error })
+      this.logger.error("Failed to make refresh session request:", { error })
       return
     }
   }
@@ -250,6 +258,15 @@ export class SessionClient {
           metadata: sessionMetadata,
         }),
       })
+
+      if (!response.ok) {
+        this.logger.error("Failed to fetch session config:", {
+          body: await response.text(),
+          status: response.status,
+        })
+        return
+      }
+
       const session: Session = (await response.json()) as PostSessionResponse
       if (
         worldId &&
@@ -272,7 +289,56 @@ export class SessionClient {
 
       return session
     } catch (error) {
-      this.logger.error("Failed to fetch session config:", { error })
+      this.logger.error("Failed to make fetch session config request:", {
+        error,
+      })
+      return
+    }
+  }
+
+  /**
+   *  Deletes an existing Session.
+   *
+   *  @param projectId The Project ID for the current project.
+   *  @param worldId The World ID for the current session.
+   *  @param sessionId The Session ID for the current session.
+   *  @param deletionReason An optional reason for the deletion, for example an error code from the streaming provider.
+   *
+   *  @return Undefined on success.
+   */
+  async deleteSession({
+    projectId,
+    worldId,
+    sessionId,
+    deletionReason,
+  }: {
+    projectId: string
+    worldId: string
+    sessionId: string
+    deletionReason?: string
+  }): Promise<undefined> {
+    const headers = new Headers({
+      [HttpHeader.ProjectId]: projectId,
+      [HttpHeader.WorldId]: worldId,
+    })
+
+    try {
+      const response = await this.doFetch(`/api/sessions/${sessionId}`, {
+        method: "delete",
+        headers,
+        body: JSON.stringify({
+          deletionReason,
+        }),
+      })
+      if (!response.ok) {
+        this.logger.error("Failed to delete session:", {
+          body: await response.text(),
+          status: response.status,
+        })
+        return
+      }
+    } catch (error) {
+      this.logger.error("Failed to make refresh session request:", { error })
       return
     }
   }
