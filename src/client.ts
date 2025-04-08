@@ -4,7 +4,7 @@ import errors from "./errors"
 import { type TypedEvent, TypedEventTarget } from "./events"
 import {
   GFNClientNotInitialized,
-  type GFNTerminationError,
+  GFNTerminationError,
   type GeforceStreamConfig,
   buildGfnUrl,
   getClient,
@@ -136,6 +136,8 @@ export type TargetOpts =
  */
 export type StartStreamConfig = {
   streamId: string
+  projectId: string
+  worldId: string
   sessionId: string
   config?: StreamConfig
 }
@@ -310,7 +312,7 @@ export class StreamingClient extends TypedEventTarget<StreamingClientEvents> {
     }
   }
 
-  async fetchStreamConfig({
+  async setup({
     projectId,
     worldId,
     forceProvider,
@@ -322,7 +324,7 @@ export class StreamingClient extends TypedEventTarget<StreamingClientEvents> {
     const compat = getStreamCompat(this.skipBrowserSupportChecks)
     const streamId = uuidv7()
 
-    const session = await this.sessionClient.fetchSessionConfig({
+    const session = await this.sessionClient.createSession({
       projectId,
       streamId,
       sessionMetadata: {
@@ -341,6 +343,8 @@ export class StreamingClient extends TypedEventTarget<StreamingClientEvents> {
 
     return {
       streamId,
+      projectId,
+      worldId,
       sessionId: session.sessionId,
       config: session.providerConfig,
     }
@@ -356,6 +360,9 @@ export class StreamingClient extends TypedEventTarget<StreamingClientEvents> {
    */
   async start({
     streamId,
+    projectId,
+    worldId,
+    sessionId,
     provider,
     ...opts
   }: StartOptions): Promise<Window | HTMLElement | StreamingClientError> {
@@ -365,9 +372,14 @@ export class StreamingClient extends TypedEventTarget<StreamingClientEvents> {
 
     this.emit("streamStateUpdated", { state: StreamState.Loading })
 
+    let needsCleanup = true
     const onTerminated = (error?: Error) => {
       this.emit("error", error)
       this.emit("streamStateUpdated", { state: StreamState.Terminated, error })
+      if (needsCleanup) {
+        this.cleanup({ projectId, worldId, sessionId, reason: error })
+        needsCleanup = false
+      }
     }
 
     switch (opts.target) {
@@ -455,6 +467,43 @@ export class StreamingClient extends TypedEventTarget<StreamingClientEvents> {
       return client
     }
     client.stop()
+  }
+
+  /**
+   * Cleans up the remote streaming session.
+   * @returns {void} Returns void.
+   * @param projectId The Project ID for the current project.
+   * @param worldId The World ID for the current session.
+   * @param sessionId The Session ID for the current session.
+   * @param reason An optional reason to report as the cause of the deletion.
+   * @throws {never} This method does not throw any errors.
+   */
+  async cleanup({
+    projectId,
+    worldId,
+    sessionId,
+    reason,
+  }: {
+    projectId: string
+    worldId: string
+    sessionId: string
+    reason?: Error | string
+  }): Promise<undefined> {
+    // Delete remote session with a useful deletion reason.
+    let deletionReason = reason instanceof Error ? reason.message : reason
+    const gfnTerminationError = errors.as(reason, GFNTerminationError)
+    if (gfnTerminationError) {
+      const message = `${gfnTerminationError.message || deletionReason}`
+      const hexCode = `0x${gfnTerminationError.code.toString(16).toUpperCase()}`
+      deletionReason = `GFN: ${message} (reason=${gfnTerminationError.reason}, code=${hexCode})`
+    }
+
+    return await this.sessionClient.deleteSession({
+      projectId,
+      worldId,
+      sessionId,
+      deletionReason,
+    })
   }
 
   /**

@@ -40,6 +40,7 @@ export function usePixelStreaming({
   clientOptions,
 }: UsePixelStreamingParams): UsePixelStreamingResult {
   const [streamState, setStreamState] = useState<StreamState>(StreamState.Idle)
+  const [sessionId, setSessionId] = useState<string>()
   const streamingClientRef = useRef<StreamingClient | null>(null)
   const eventHandlersRef = useRef<{
     onStateUpdate: (event: StreamStateUpdatedEvent) => void
@@ -90,7 +91,7 @@ export function usePixelStreaming({
       )
       streamingClientRef.current.addEventListener("error", onErrorEvent)
 
-      const config = await streamingClientRef.current.fetchStreamConfig({
+      const config = await streamingClientRef.current.setup({
         projectId,
         worldId,
         forceProvider: StreamProvider.GeforceNow,
@@ -100,20 +101,27 @@ export function usePixelStreaming({
         onError(new Error("Failed to fetch stream config"))
       }
 
+      setSessionId(config?.sessionId)
       const streamingContainerOrError = await streamingClientRef.current.start({
-        ...(config as { streamId: string; config: GeforceStreamConfig }),
+        ...(config as {
+          streamId: string
+          config: GeforceStreamConfig
+          sessionId: string
+          projectId: string
+          worldId: string
+        }),
         provider: StreamProvider.GeforceNow,
         target: StreamTarget.Embedded,
         container: ref,
       })
 
       if (streamingContainerOrError instanceof StreamingClientError) {
-        streamingClientRef.current.deleteSession({
-          projectId,
-          worldId,
-          sessionId: config.sessionId,
-          deletionReason: streamingContainerOrError?.message,
-        })
+        if (config) {
+          await streamingClientRef.current.cleanup({
+            reason: streamingContainerOrError,
+            ...config,
+          })
+        }
         throw streamingContainerOrError
       }
     },

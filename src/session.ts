@@ -71,6 +71,7 @@ export type GeforceStreamConfig = {
   zone?: string
   state?: string
   windowed?: boolean
+  sessionId: string
 }
 
 export type UbitusStreamConfig = {
@@ -81,7 +82,7 @@ export type UbitusStreamConfig = {
   token: string
   server: string
   gameChannel: string
-  sessionId?: string
+  sessionId: string
 }
 
 export type StreamConfig = GeforceStreamConfig | UbitusStreamConfig
@@ -225,7 +226,7 @@ export class SessionClient {
   }
 
   /**
-   *  Fetches a Session configuration; may create a World-scoped session if the World ID is supplied _and_ the backend
+   *  Creates a Session configuration; may create a World-scoped session if the World ID is supplied _and_ the backend
    *  allows it.
    *
    *  @param projectId The Project ID for the current project.
@@ -236,7 +237,7 @@ export class SessionClient {
    *
    *  @return The Session object, or undefined if the session could not be created.
    */
-  async fetchSessionConfig({
+  async createSession({
     projectId,
     streamId,
     sessionMetadata,
